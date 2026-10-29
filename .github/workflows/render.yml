@@ -15,7 +15,7 @@ jobs:
       - name: Install and render
         run: |
           set -e
-          ZIP="remotion-mc-explorer-elite-github (1).zip"
+          ZIP="remotion-mc-explorer-elite-github (2).zip"
           if [ ! -f "$ZIP" ]; then
             ZIP=$(ls *.zip | head -1)
           fi

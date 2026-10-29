@@ -1,4 +1,4 @@
-name: Render promo video
+name: Render MC Explorer
 
 on:
   workflow_dispatch:
@@ -6,24 +6,33 @@ on:
 jobs:
   render:
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 90
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
           node-version: 20
-      - name: Unzip project
+      - name: Install and render
         run: |
-          unzip -q "$(ls *.zip | head -1)" -d proj
-          mv proj/*/ app
-      - name: Install
-        working-directory: app
-        run: npm install
-      - name: Render MP4
-        working-directory: app
-        run: npx remotion render Promo out/mc-explorer-promo.mp4 --codec=h264 --crf=18
+          set -e
+          ZIP="remotion-mc-explorer-elite-github (1).zip"
+          if [ ! -f "$ZIP" ]; then
+            ZIP=$(ls *.zip | head -1)
+          fi
+          echo "Using zip: $ZIP"
+          rm -rf app proj
+          unzip -q "$ZIP" -d proj
+          if [ -f proj/package.json ]; then
+            mv proj app
+          else
+            SUB=$(find proj -mindepth 1 -maxdepth 1 -type d | head -1)
+            mv "$SUB" app
+          fi
+          cd app
+          npm install
+          npm run build
       - name: Upload video
         uses: actions/upload-artifact@v4
         with:
           name: mc-explorer-promo
-          path: app/out/mc-explorer-promo.mp4
+          path: "**/mc-explorer.mp4"

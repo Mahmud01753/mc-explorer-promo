@@ -1,0 +1,29 @@
+name: Render promo video
+
+on:
+  workflow_dispatch:
+
+jobs:
+  render:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - name: Unzip project
+        run: |
+          unzip -q "$(ls *.zip | head -1)" -d proj
+          mv proj/*/ app
+      - name: Install
+        working-directory: app
+        run: npm install
+      - name: Render MP4
+        working-directory: app
+        run: npx remotion render Promo out/mc-explorer-promo.mp4 --codec=h264 --crf=18
+      - name: Upload video
+        uses: actions/upload-artifact@v4
+        with:
+          name: mc-explorer-promo
+          path: app/out/mc-explorer-promo.mp4

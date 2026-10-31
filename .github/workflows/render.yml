@@ -1,19 +1,14 @@
 name: Render video
-
 on:
   workflow_dispatch:
   push:
-    paths:
-      - "*.zip"
+    branches: [main]
 
 jobs:
   render:
     runs-on: ubuntu-latest
-    timeout-minutes: 60
     steps:
       - uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
 
       - uses: actions/setup-node@v4
         with:
@@ -21,30 +16,25 @@ jobs:
 
       - name: Unzip latest uploaded zip
         run: |
-          ZIP=$(for f in *.zip; do [ -e "$f" ] && echo "$(git log -1 --format=%ct -- "$f") $f"; done | sort -n | tail -1 | cut -d' ' -f2-)
-          if [ -z "$ZIP" ]; then echo "No zip found in repo root"; exit 1; fi
-          echo "Using zip: $ZIP"
+          ZIP=$(ls -t $(find . -maxdepth 2 -name "*.zip" -not -path "./node_modules/*") | head -n 1)
+          echo "Using: $ZIP"
           rm -rf _proj && mkdir _proj
           unzip -q "$ZIP" -d _proj
-          PKG=$(find _proj -name package.json -not -path '*/node_modules/*' | head -1)
-          if [ -z "$PKG" ]; then echo "No package.json inside zip"; exit 1; fi
-          echo "DIR=$(dirname "$PKG")" >> "$GITHUB_ENV"
+          PKG=$(find _proj -name package.json -not -path "*/node_modules/*" | head -n 1)
+          echo "PROJ_DIR=$(dirname "$PKG")" >> $GITHUB_ENV
 
       - name: Install system libs for Chrome
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y libnss3 libdbus-1-3 libatk1.0-0 libatk-bridge2.0-0 libasound2t64 libxrandr2 libxkbcommon0 libxfixes3 libxcomposite1 libxdamage1 libgbm1 libcups2 libpango-1.0-0 libcairo2 fonts-noto
+        run: sudo apt-get update && sudo apt-get install -y libnss3 libdbus-1-3 libatk1.0-0 libasound2t64 libxrandr2 libxkbcommon-dev libxfixes3 libxcomposite1 libxdamage1 libgbm-dev libcups2 libatk-bridge2.0-0
 
       - name: Install packages
-        working-directory: ${{ env.DIR }}
+        working-directory: ${{ env.PROJ_DIR }}
         run: npm install
 
       - name: Render
-        working-directory: ${{ env.DIR }}
-        run: npx remotion render MCExplorer out/mc-explorer.mp4
+        working-directory: ${{ env.PROJ_DIR }}
+        run: npx remotion render Intro out/intro.mp4
 
       - uses: actions/upload-artifact@v4
         with:
-          name: mc-explorer-video
-          path: ${{ env.DIR }}/out/mc-explorer.mp4
-          retention-days: 7
+          name: intro-video
+          path: ${{ env.PROJ_DIR }}/out/intro.mp4

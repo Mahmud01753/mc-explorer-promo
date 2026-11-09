@@ -1,10 +1,19 @@
-name: Render Video
+name: Universal Auto Video Render
 
 on:
-  workflow_dispatch: # গিটহাব ড্যাশবোর্ড থেকে ম্যানুয়ালি রান করার জন্য
   push:
     branches:
       - main
+    paths:
+      - '**/*.zip'
+      - '**/*.mp4'
+      - '**/*.mov'
+      - '**/*.mkv'
+      - '**/*.html'
+      - '**/*.py'
+      - '**/*.mp3'
+      - '**/*.wav'
+  workflow_dispatch:
 
 jobs:
   render:
@@ -13,32 +22,73 @@ jobs:
     steps:
       - name: Checkout Repository
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
           python-version: '3.10'
 
-      - name: Install System Dependencies
+      - name: Install System Packages & Media Tools
         run: |
           sudo apt-get update
-          sudo apt-get install -y ffmpeg xvfb
+          sudo apt-get install -y ffmpeg unzip xvfb fonts-bengali fonts-noto-core
 
-      - name: Install Python Requirements
+      - name: Unpack ONLY the Latest ZIP Archive
+        run: |
+          # সব জিপ ফাইলের মধ্য থেকে গিট হিস্ট্রি বা সময় অনুযায়ী সর্বশেষ (লাস্ট) জিপ ফাইলটি সিলেক্ট করবে
+          LATEST_ZIP=$(ls -t *.zip 2>/dev/null | head -n 1)
+
+          if [ -z "$LATEST_ZIP" ]; then
+            # যদি রুট ডিরেক্টরিতে সরাসরি না থাকে, সাব-ফোল্ডারের ভেতর খুঁজবে
+            LATEST_ZIP=$(find . -name "*.zip" -type f -printf '%T@ %p\n' | sort -n | tail -1 | cut -f2- -d" ")
+          fi
+
+          if [ -n "$LATEST_ZIP" ]; then
+            echo "সর্বশেষ আপলোড করা জিপ ফাইল পাওয়া গেছে: $LATEST_ZIP"
+            echo "পুরনো ফাইলগুলো বাদ দিয়ে কেবল এটি আনজিপ করা হচ্ছে..."
+            unzip -o "$LATEST_ZIP"
+          else
+            echo "কোনো জিপ ফাইল পাওয়া যায়নি, সরাসরি পুশ করা ফাইল দিয়ে প্রসেস চলবে।"
+          fi
+
+          # যদি আনজিপ হওয়া ফাইল কোনো সাব-ফোল্ডারে থাকে, সেগুলোকে রুটে নিয়ে আসবে
+          find . -mindepth 2 -name "*.html" -exec cp {} . \;
+          find . -mindepth 2 -name "*.mp3" -exec cp {} . \;
+          find . -mindepth 2 -name "*.wav" -exec cp {} . \;
+          find . -mindepth 2 -name "*.py" -exec cp {} . \;
+
+      - name: Install Python Dependencies & Browsers
         run: |
           python -m pip install --upgrade pip
+          pip install playwright moviepy selenium pillow numpy opencv-python webdriver-manager
           if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
-          # যদি render.py-তে moviepy, selenium বা অন্য লাইব্রেরি থাকে:
-          pip install moviepy pillow numpy
+          python -m playwright install --with-deps chromium || true
 
-      - name: Run Render Script
+      - name: Execute Render Script with Virtual Screen
         run: |
-          python render.py
+          # ডিরেক্টরি থেকে render.py থাকলে সেটি, না থাকলে প্রথম পাওয়া .py ফাইল নেবে
+          if [ -f "render.py" ]; then
+            TARGET="render.py"
+          else
+            TARGET=$(find . -maxdepth 1 -name "*.py" | head -n 1)
+          fi
 
-      - name: Upload Rendered Output
+          if [ -n "$TARGET" ]; then
+            echo "Running script: $TARGET"
+            xvfb-run --auto-servernum --server-args="-screen 0 1920x1080x24" python "$TARGET"
+          else
+            echo "ERROR: কোনো পাইথন ফাইল পাওয়া যায়নি!"
+            exit 1
+          fi
+
+      - name: Upload Final Rendered Video
+        if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: rendered-video
+          name: completed-rendered-video
           path: |
             *.mp4
-            output/
+            output/*.mp4
+            final*.mp4

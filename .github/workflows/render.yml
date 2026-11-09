@@ -33,27 +33,26 @@ jobs:
       - name: Install System Packages & Media Tools
         run: |
           sudo apt-get update
-          sudo apt-get install -y ffmpeg unzip xvfb fonts-bengali fonts-noto-core
+          # সঠিক প্যাকেজ নাম ব্যবহার করা হয়েছে (fonts-bengali এরর সমাধান)
+          sudo apt-get install -y ffmpeg unzip xvfb fonts-lohit-beng-bengali fonts-noto-core
 
       - name: Unpack ONLY the Latest ZIP Archive
         run: |
-          # সব জিপ ফাইলের মধ্য থেকে গিট হিস্ট্রি বা সময় অনুযায়ী সর্বশেষ (লাস্ট) জিপ ফাইলটি সিলেক্ট করবে
+          # একাধিক জিপ থাকলে সর্বশেষ আপলোড করা জিপটি বেছে নেবে
           LATEST_ZIP=$(ls -t *.zip 2>/dev/null | head -n 1)
 
           if [ -z "$LATEST_ZIP" ]; then
-            # যদি রুট ডিরেক্টরিতে সরাসরি না থাকে, সাব-ফোল্ডারের ভেতর খুঁজবে
-            LATEST_ZIP=$(find . -name "*.zip" -type f -printf '%T@ %p\n' | sort -n | tail -1 | cut -f2- -d" ")
+            LATEST_ZIP=$(find . -name "*.zip" -type f -printf '%T@ %p\n' 2>/dev/null | sort -n | tail -1 | cut -f2- -d" ")
           fi
 
           if [ -n "$LATEST_ZIP" ]; then
-            echo "সর্বশেষ আপলোড করা জিপ ফাইল পাওয়া গেছে: $LATEST_ZIP"
-            echo "পুরনো ফাইলগুলো বাদ দিয়ে কেবল এটি আনজিপ করা হচ্ছে..."
+            echo "Latest ZIP found: $LATEST_ZIP"
             unzip -o "$LATEST_ZIP"
           else
-            echo "কোনো জিপ ফাইল পাওয়া যায়নি, সরাসরি পুশ করা ফাইল দিয়ে প্রসেস চলবে।"
+            echo "No zip archive found, proceeding with workspace files."
           fi
 
-          # যদি আনজিপ হওয়া ফাইল কোনো সাব-ফোল্ডারে থাকে, সেগুলোকে রুটে নিয়ে আসবে
+          # সাব-ফোল্ডারের ভেতর ফাইল থাকলে রুটে কপি করবে
           find . -mindepth 2 -name "*.html" -exec cp {} . \;
           find . -mindepth 2 -name "*.mp3" -exec cp {} . \;
           find . -mindepth 2 -name "*.wav" -exec cp {} . \;
@@ -68,7 +67,7 @@ jobs:
 
       - name: Execute Render Script with Virtual Screen
         run: |
-          # ডিরেক্টরি থেকে render.py থাকলে সেটি, না থাকলে প্রথম পাওয়া .py ফাইল নেবে
+          # render.py থাকলে সেটা, না পেলে যেকোনো .py ফাইল নেবে
           if [ -f "render.py" ]; then
             TARGET="render.py"
           else
@@ -76,10 +75,10 @@ jobs:
           fi
 
           if [ -n "$TARGET" ]; then
-            echo "Running script: $TARGET"
+            echo "Executing script: $TARGET"
             xvfb-run --auto-servernum --server-args="-screen 0 1920x1080x24" python "$TARGET"
           else
-            echo "ERROR: কোনো পাইথন ফাইল পাওয়া যায়নি!"
+            echo "ERROR: কোনো পাইথন (.py) ফাইল খুঁজে পাওয়া যায়নি!"
             exit 1
           fi
 
